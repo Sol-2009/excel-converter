@@ -2,9 +2,7 @@ import streamlit as st
 import tempfile
 import subprocess
 import os
-import zipfile
 from pathlib import Path
-from lxml import etree
 
 st.set_page_config(page_title="Excel to XLSX 변환기")
 st.title("Excel to .xlsx 변환기")
@@ -48,35 +46,7 @@ def convert_to_xlsx(input_path, output_dir):
     output_path = os.path.join(output_dir, Path(input_path).stem + ".xlsx")
     if not os.path.exists(output_path):
         raise RuntimeError("변환된 파일을 찾을 수 없습니다.")
-
-    clean_named_ranges(output_path)
     return output_path
-
-
-def clean_named_ranges(xlsx_path):
-    """workbook.xml에서 잘못된 명명된 범위를 제거하여 Excel 오류 방지"""
-    ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
-    temp_path = xlsx_path + ".tmp"
-
-    with zipfile.ZipFile(xlsx_path, "r") as zin:
-        with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as zout:
-            for item in zin.infolist():
-                data = zin.read(item.filename)
-                if item.filename == "xl/workbook.xml":
-                    root = etree.fromstring(data)
-                    for defined_names in root.findall(f"{{{ns}}}definedNames"):
-                        for dn in list(defined_names):
-                            text = (dn.text or "").strip()
-                            if "#REF!" in text or not text:
-                                defined_names.remove(dn)
-                        if len(defined_names) == 0:
-                            root.remove(defined_names)
-                    data = etree.tostring(
-                        root, xml_declaration=True, encoding="UTF-8", standalone=True
-                    )
-                zout.writestr(item, data)
-
-    os.replace(temp_path, xlsx_path)
 
 
 if "results" not in st.session_state:
@@ -92,7 +62,6 @@ if uploaded_files and st.button("변환 시작", type="primary"):
 
         with st.spinner(f"변환 중: {uploaded_file.name}"):
             tmp_dir = None
-            tmp_in_path = None
             try:
                 tmp_dir = tempfile.mkdtemp()
                 tmp_in_path = os.path.join(tmp_dir, uploaded_file.name)
